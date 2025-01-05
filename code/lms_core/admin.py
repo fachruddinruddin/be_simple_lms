@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from lms_core.models import Course, CourseMember, CourseContent, Comment
+from lms_core.models import Course, CourseMember, CourseContent, Comment, Announcement, Category  # Tambahkan Announcement, Category
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
@@ -69,6 +69,21 @@ class CommentAdmin(admin.ModelAdmin):
     search_fields = ["comment", "member_id_user_id_username"]
     readonly_fields = ["created_at", "updated_at"]
     fields = ["content_id", "member_id", "comment", "is_approved", "created_at", "updated_at"]
+
+@admin.register(Announcement, site=admin_site)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ["title", "course", "release_date", "created_at"]
+    list_filter = ["course", "release_date"]
+    search_fields = ["title", "course__name"]
+    readonly_fields = ["created_at", "updated_at"]
+    fields = ["course", "title", "content", "release_date", "created_at", "updated_at"]
+
+@admin.register(Category, site=admin_site)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ["name", "created_by", "created_at"]
+    search_fields = ["name", "created_by__username"]
+    readonly_fields = ["created_at", "updated_at"]
+    fields = ["name", "created_by", "created_at", "updated_at"]
 
 class CustomUserAdmin(BaseUserAdmin):
     add_form = UserCreationForm

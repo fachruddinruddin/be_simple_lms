@@ -3,7 +3,7 @@ from ninja.responses import Response
 from lms_core.schema import CourseSchemaOut, CourseMemberOut, CourseSchemaIn
 from lms_core.schema import CourseContentMini, CourseContentFull
 from lms_core.schema import CourseCommentOut, CourseCommentIn
-from lms_core.models import Course, CourseMember, CourseContent, Comment
+from lms_core.models import Course, CourseMember, CourseContent, Comment, Category  # Tambahkan Category
 from ninja_simple_jwt.auth.views.api import mobile_auth_router
 from ninja_simple_jwt.auth.ninja_auth import HttpJwtAuth
 from ninja.pagination import paginate, PageNumberPagination
@@ -36,12 +36,14 @@ def my_courses(request):
 @apiv1.post("/courses", auth=apiAuth, response={201:CourseSchemaOut})
 def create_course(request, data: Form[CourseSchemaIn], image: UploadedFile = File(None)):
     user = User.objects.get(id=request.user.id)
+    category = Category.objects.get(id=data.category_id) if data.category_id else None
     course = Course(
         name=data.name,
         description=data.description,
         price=data.price,
         image=image,
-        teacher=user
+        teacher=user,
+        category=category
     )
 
     if image:
@@ -58,9 +60,11 @@ def update_course(request, course_id: int, data: Form[CourseSchemaIn], image: Up
         return Response(message, status=401)
     
     course = Course.objects.get(id=course_id)
+    category = Category.objects.get(id=data.category_id) if data.category_id else None
     course.name = data.name
     course.description = data.description
     course.price = data.price
+    course.category = category
     if image:
         course.image.save(image.name, image)
     course.save()
@@ -127,4 +131,4 @@ def delete_comment(request, comment_id: int):
     if comment.member_id.user_id.id != request.user.id:
         return {"error": "You are not authorized to delete this comment"}
     comment.delete()
-    return {"message": "Comment deleted"}   
+    return {"message": "Comment deleted"}

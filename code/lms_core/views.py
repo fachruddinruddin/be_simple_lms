@@ -1,6 +1,6 @@
-from django.shortcuts import render, HttpResponse
+from django.shortcuts import render, HttpResponse, get_object_or_404
 from django.http import JsonResponse
-from lms_core.models import Course, Comment, CourseContent
+from lms_core.models import Course, Comment, CourseContent, CourseMember, Announcement, Category
 from django.core import serializers
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
@@ -12,7 +12,7 @@ from django import forms  # Tambahkan impor ini
 
 def index(request):
     return HttpResponse("<h1>Hello World</h1>")
-    
+
 def testing(request):
     dataCourse = Course.objects.all()
     dataCourse = serializers.serialize("python", dataCourse)
@@ -180,3 +180,187 @@ def batch_enroll(request):
     else:
         form = BatchEnrollForm()
     return render(request, 'admin/batch_enroll.html', {'form': form})
+
+@csrf_exempt
+def mark_course_complete(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        course_id = data.get('course_id')
+        user_id = data.get('user_id')
+
+        try:
+            course_member = CourseMember.objects.get(course_id=course_id, user_id=user_id)
+            course_member.is_completed = True
+            course_member.save()
+            return JsonResponse({"message": "Course marked as complete"}, status=200)
+        except CourseMember.DoesNotExist:
+            return JsonResponse({"error": "CourseMember tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+@csrf_exempt
+def check_course_completion(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        course_id = data.get('course_id')
+        user_id = data.get('user_id')
+
+        try:
+            course_member = CourseMember.objects.get(course_id=course_id, user_id=user_id)
+            return JsonResponse({"is_completed": course_member.is_completed}, status=200)
+        except CourseMember.DoesNotExist:
+            return JsonResponse({"error": "CourseMember tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+def certificate(request, course_id, user_id):
+    course = get_object_or_404(Course, id=course_id)
+    user = get_object_or_404(User, id=user_id)
+    course_member = get_object_or_404(CourseMember, course_id=course, user_id=user)
+
+    if not course_member.is_completed:
+        return HttpResponse("User belum menyelesaikan kursus ini", status=403)
+
+    context = {
+        'course': course,
+        'user': user,
+        'date': timezone.now()
+    }
+    return render(request, 'certificate.html', context)
+
+@csrf_exempt
+def create_announcement(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        course_id = data.get('course_id')
+        title = data.get('title')
+        content = data.get('content')
+        release_date = data.get('release_date')
+        user_id = data.get('user_id')
+
+        try:
+            course = Course.objects.get(id=course_id)
+            user = User.objects.get(id=user_id)
+
+            if course.teacher != user:
+                return JsonResponse({"error": "Hanya teacher yang dapat membuat pengumuman"}, status=403)
+
+            announcement = Announcement.objects.create(
+                course=course,
+                title=title,
+                content=content,
+                release_date=release_date
+            )
+            return JsonResponse({"message": "Pengumuman berhasil dibuat"}, status=201)
+
+        except Course.DoesNotExist:
+            return JsonResponse({"error": "Course tidak ditemukan"}, status=404)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+def show_announcements(request, course_id):
+    try:
+        course = Course.objects.get(id=course_id)
+        announcements = Announcement.objects.filter(course=course, release_date__lte=timezone.now())
+        data = serializers.serialize("json", announcements)
+        return JsonResponse(data, safe=False)
+    except Course.DoesNotExist:
+        return JsonResponse({"error": "Course tidak ditemukan"}, status=404)
+
+@csrf_exempt
+def edit_announcement(request, announcement_id):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        title = data.get('title')
+        content = data.get('content')
+        release_date = data.get('release_date')
+        user_id = data.get('user_id')
+
+        try:
+            announcement = Announcement.objects.get(id=announcement_id)
+            user = User.objects.get(id=user_id)
+
+            if announcement.course.teacher != user:
+                return JsonResponse({"error": "Hanya teacher yang dapat mengedit pengumuman"}, status=403)
+
+            announcement.title = title
+            announcement.content = content
+            announcement.release_date = release_date
+            announcement.save()
+            return JsonResponse({"message": "Pengumuman berhasil diubah"}, status=200)
+
+        except Announcement.DoesNotExist:
+            return JsonResponse({"error": "Pengumuman tidak ditemukan"}, status=404)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+@csrf_exempt
+def delete_announcement(request, announcement_id):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+
+        try:
+            announcement = Announcement.objects.get(id=announcement_id)
+            user = User.objects.get(id=user_id)
+
+            if announcement.course.teacher != user:
+                return JsonResponse({"error": "Hanya teacher yang dapat menghapus pengumuman"}, status=403)
+
+            announcement.delete()
+            return JsonResponse({"message": "Pengumuman berhasil dihapus"}, status=200)
+
+        except Announcement.DoesNotExist:
+            return JsonResponse({"error": "Pengumuman tidak ditemukan"}, status=404)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+@csrf_exempt
+def add_category(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        name = data.get('name')
+        user_id = data.get('user_id')
+
+        try:
+            user = User.objects.get(id=user_id)
+            category = Category.objects.create(name=name, created_by=user)
+            return JsonResponse({"message": "Kategori berhasil dibuat"}, status=201)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+def show_categories(request):
+    categories = Category.objects.all()
+    data = serializers.serialize("json", categories)
+    return JsonResponse(data, safe=False)
+
+@csrf_exempt
+def delete_category(request, category_id):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+
+        try:
+            category = Category.objects.get(id=category_id)
+            user = User.objects.get(id=user_id)
+
+            if category.created_by != user:
+                return JsonResponse({"error": "Hanya user yang membuat kategori yang dapat menghapusnya"}, status=403)
+
+            category.delete()
+            return JsonResponse({"message": "Kategori berhasil dihapus"}, status=200)
+
+        except Category.DoesNotExist:
+            return JsonResponse({"error": "Kategori tidak ditemukan"}, status=404)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)

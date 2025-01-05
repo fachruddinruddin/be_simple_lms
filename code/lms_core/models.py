@@ -1,6 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+class Category(models.Model):
+    name = models.CharField("Nama Kategori", max_length=255)
+    created_by = models.ForeignKey(User, verbose_name="Dibuat oleh", on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
 class Course(models.Model):
     name = models.CharField("Nama", max_length=255)
     description = models.TextField("Deskripsi")
@@ -8,6 +17,7 @@ class Course(models.Model):
     image = models.ImageField("Gambar", upload_to="course", blank=True, null=True)
     teacher = models.ForeignKey(User, verbose_name="Pengajar", on_delete=models.RESTRICT)
     max_students = models.IntegerField("Maksimal Siswa", default=30)  # Tambahkan field max_students
+    category = models.ForeignKey(Category, verbose_name="Kategori", on_delete=models.SET_NULL, null=True, blank=True)  # Tambahkan kolom kategori
     created_at = models.DateTimeField("Dibuat pada", auto_now_add=True)
     updated_at = models.DateTimeField("Diperbarui pada", auto_now=True)
 
@@ -35,6 +45,7 @@ class CourseMember(models.Model):
     course_id = models.ForeignKey(Course, verbose_name="matkul", on_delete=models.RESTRICT)
     user_id = models.ForeignKey(User, verbose_name="siswa", on_delete=models.RESTRICT)
     roles = models.CharField("peran", max_length=3, choices=ROLE_OPTIONS, default='std')
+    is_completed = models.BooleanField("Selesai", default=False)  # Tambahkan field is_completed
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now_add=True)
 
@@ -76,6 +87,17 @@ class Comment(models.Model):
 
     def _str_(self) -> str:
         return f"Komen: {self.member_id.user_id.username} - {self.comment}"
+
+class Announcement(models.Model):
+    course = models.ForeignKey(Course, verbose_name="Course", on_delete=models.CASCADE)
+    title = models.CharField("Judul", max_length=255)
+    content = models.TextField("Konten")
+    release_date = models.DateTimeField("Tanggal Rilis")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
 
 # Tambahkan metode di model User untuk menghitung statistik
 User.add_to_class('get_course_stats', lambda self: {
