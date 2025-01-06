@@ -1,4 +1,4 @@
-from django.shortcuts import render, HttpResponse, get_object_or_404
+from django.shortcuts import render, HttpResponse, get_object_or_404, redirect
 from django.http import JsonResponse
 from lms_core.models import Course, Comment, CourseContent, CourseMember, Announcement, Category
 from django.core import serializers
@@ -9,6 +9,12 @@ from django.utils import timezone
 from django.contrib.auth import authenticate, login
 from django.db.models import Count
 from django import forms  # Tambahkan impor ini
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.contrib import messages  # Add this import
+import logging
+
+logger = logging.getLogger(__name__)
 
 def index(request):
     return HttpResponse("<h1>Hello World</h1>")
@@ -39,20 +45,21 @@ def deleteData(request):
     course.delete()
     return JsonResponse({"message": "Data berhasil dihapus"})
 
-@csrf_exempt
-def register(request):
-    if request.method == 'POST':
-        username = "udin"
-        password = "udin123"
-        email = "udin@gmail.com"
+@method_decorator(csrf_exempt, name='dispatch')
+class RegisterView(View):
+    def post(self, request):
+        data = json.loads(request.body)
+        username = data.get('username')
+        password = data.get('password')
+        email = data.get('email')
 
         if User.objects.filter(username=username).exists():
             return JsonResponse({"error": "Username already exists"}, status=400)
 
-        User.objects.create_user(username=username, password=password, email=email)
+        user = User.objects.create_user(username=username, password=password, email=email)
         return JsonResponse({"message": "User registered successfully"}, status=201)
 
-    return JsonResponse({"error": "Invalid request method"}, status=405)
+register = RegisterView.as_view()
 
 @csrf_exempt
 def register_user(request):
@@ -145,14 +152,30 @@ def list_comments(request, content_id):
     return JsonResponse(data, safe=False)
 
 def user_activity_dashboard(request, user_id):
-    user = User.objects.get(id=user_id)
-    stats = user.get_course_stats()
-    return JsonResponse(stats)
+    try:
+        user = User.objects.get(id=user_id)
+        stats = {
+            'courses_as_student': CourseMember.objects.filter(user_id=user, roles='std').count(),
+            'courses_created': Course.objects.filter(teacher=user).count(),
+            'comments_written': Comment.objects.filter(member_id__user_id=user).count(),
+            'contents_completed': CourseMember.objects.filter(user_id=user, is_completed=True).count()  # Assuming content completion is tracked by CourseMember
+        }
+        return JsonResponse(stats, status=200)
+    except User.DoesNotExist:
+        return JsonResponse({"error": "User tidak ditemukan"}, status=404)
 
 def course_analytics(request, course_id):
-    course = Course.objects.get(id=course_id)
-    stats = course.get_course_stats()
-    return JsonResponse(stats)
+    try:
+        course = Course.objects.get(id=course_id)
+        stats = {
+            'members_count': CourseMember.objects.filter(course_id=course).count(),
+            'contents_count': CourseContent.objects.filter(course_id=course).count(),
+            'comments_count': Comment.objects.filter(content_id__course_id=course).count(),
+            # 'feedback_count': ... (Tambahkan logika untuk menghitung feedback jika fitur ini ada)
+        }
+        return JsonResponse(stats, status=200)
+    except Course.DoesNotExist:
+        return JsonResponse({"error": "Course tidak ditemukan"}, status=404)
 
 def list_course_contents(request, course_id):
     contents = CourseContent.objects.filter(course_id=course_id, release_date__lte=timezone.now())
@@ -362,5 +385,63 @@ def delete_category(request, category_id):
             return JsonResponse({"error": "Kategori tidak ditemukan"}, status=404)
         except User.DoesNotExist:
             return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+@csrf_exempt
+def api_batch_enroll(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        course_id = data.get('course_id')
+        student_ids = data.get('student_ids')
+
+        try:
+            course = Course.objects.get(id=course_id)
+            if CourseMember.objects.filter(course_id=course).count() + len(student_ids) > course.max_students:
+                return JsonResponse({"error": "Not enough slots available for all students"}, status=400)
+
+            for student_id in student_ids:
+                student = User.objects.get(id=student_id)
+                if not CourseMember.objects.filter(course_id=course, user_id=student).exists():
+                    CourseMember.objects.create(course_id=course, user_id=student)
+
+            return JsonResponse({"message": "Students enrolled successfully"}, status=201)
+
+        except Course.DoesNotExist:
+            return JsonResponse({"error": "Course not found"}, status=404)
+        except User.DoesNotExist:
+            return JsonResponse({"error": "One or more users not found"}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+@csrf_exempt
+def moderate_comment(request, comment_id):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            is_approved = data.get('is_approved')
+            user_id = data.get('user_id')
+
+            comment = Comment.objects.get(id=comment_id)
+            user = User.objects.get(id=user_id)
+
+            if comment.content_id.course_id.teacher != user:
+                return JsonResponse({"error": "Hanya teacher yang dapat memoderasi komentar"}, status=403)
+
+            comment.is_approved = is_approved
+            comment.save()
+            return JsonResponse({"message": "Komentar berhasil dimoderasi"}, status=200)
+
+        except Comment.DoesNotExist:
+            logger.error("Comment not found", exc_info=True)
+            return JsonResponse({"error": "Komentar tidak ditemukan"}, status=404)
+        except User.DoesNotExist:
+            logger.error("User not found", exc_info=True)
+            return JsonResponse({"error": "User tidak ditemukan"}, status=404)
+        except Exception as e:
+            logger.error("An unexpected error occurred", exc_info=True)
+            return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
     return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)

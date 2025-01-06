@@ -3,7 +3,7 @@ from ninja.responses import Response
 from lms_core.schema import CourseSchemaOut, CourseMemberOut, CourseSchemaIn
 from lms_core.schema import CourseContentMini, CourseContentFull
 from lms_core.schema import CourseCommentOut, CourseCommentIn
-from lms_core.models import Course, CourseMember, CourseContent, Comment, Category  # Tambahkan Category
+from lms_core.models import Course, CourseMember, CourseContent, Comment, Category, Announcement  # Tambahkan Announcement
 from ninja_simple_jwt.auth.views.api import mobile_auth_router
 from ninja_simple_jwt.auth.ninja_auth import HttpJwtAuth
 from ninja.pagination import paginate, PageNumberPagination
@@ -95,13 +95,12 @@ def enroll_course(request, course_id: int):
     course = Course.objects.get(id=course_id)
     course_member = CourseMember(course_id=course, user_id=user, roles="std")
     course_member.save()
-    # print(course_member)
     return course_member
 
 # - list content comment
-@apiv1.get("/contents/{content_id}/comments", auth=apiAuth, response=list[CourseContentMini])
+@apiv1.get("/contents/{content_id}/comments", auth=apiAuth, response=list[CourseCommentOut])
 def list_content_comment(request, content_id: int):
-    comments = CourseContent.objects.filter(course_id=content_id)
+    comments = Comment.objects.filter(content_id=content_id, is_approved=True)
     return comments
 
 # - create content comment
@@ -132,3 +131,71 @@ def delete_comment(request, comment_id: int):
         return {"error": "You are not authorized to delete this comment"}
     comment.delete()
     return {"message": "Comment deleted"}
+
+# - add category
+@apiv1.post("/categories", auth=apiAuth, response={201: dict})
+def add_category(request, data: dict):
+    user = User.objects.get(id=request.user.id)
+    category = Category.objects.create(name=data['name'], created_by=user)
+    return 201, {"message": "Kategori berhasil dibuat"}
+
+# - show categories
+@apiv1.get("/categories", response=list[dict])
+def show_categories(request):
+    categories = Category.objects.all()
+    return [{"id": category.id, "name": category.name} for category in categories]
+
+# - delete category
+@apiv1.delete("/categories/{category_id}", auth=apiAuth, response={200: dict})
+def delete_category(request, category_id: int):
+    user = User.objects.get(id=request.user.id)
+    category = Category.objects.get(id=category_id)
+    if category.created_by != user:
+        return Response({"error": "Hanya user yang membuat kategori yang dapat menghapusnya"}, status=403)
+    category.delete()
+    return {"message": "Kategori berhasil dihapus"}
+
+# - create announcement
+@apiv1.post("/announcements", auth=apiAuth, response={201: dict})
+def create_announcement(request, data: dict):
+    user = User.objects.get(id=request.user.id)
+    course = Course.objects.get(id=data['course_id'])
+    if course.teacher != user:
+        return Response({"error": "Hanya teacher yang dapat membuat pengumuman"}, status=403)
+    announcement = Announcement.objects.create(
+        course=course,
+        title=data['title'],
+        content=data['content'],
+        release_date=data['release_date']
+    )
+    return 201, {"message": "Pengumuman berhasil dibuat"}
+
+# - show announcements
+@apiv1.get("/announcements/{course_id}", response=list[dict])
+def show_announcements(request, course_id: int):
+    course = Course.objects.get(id=course_id)
+    announcements = Announcement.objects.filter(course=course, release_date__lte=timezone.now())
+    return [{"id": announcement.id, "title": announcement.title, "content": announcement.content, "release_date": announcement.release_date} for announcement in announcements]
+
+# - edit announcement
+@apiv1.post("/announcements/{announcement_id}", auth=apiAuth, response={200: dict})
+def edit_announcement(request, announcement_id: int, data: dict):
+    user = User.objects.get(id=request.user.id)
+    announcement = Announcement.objects.get(id=announcement_id)
+    if announcement.course.teacher != user:
+        return Response({"error": "Hanya teacher yang dapat mengedit pengumuman"}, status=403)
+    announcement.title = data['title']
+    announcement.content = data['content']
+    announcement.release_date = data['release_date']
+    announcement.save()
+    return {"message": "Pengumuman berhasil diubah"}
+
+# - delete announcement
+@apiv1.delete("/announcements/{announcement_id}", auth=apiAuth, response={200: dict})
+def delete_announcement(request, announcement_id: int):
+    user = User.objects.get(id=request.user.id)
+    announcement = Announcement.objects.get(id=announcement_id)
+    if announcement.course.teacher != user:
+        return Response({"error": "Hanya teacher yang dapat menghapus pengumuman"}, status=403)
+    announcement.delete()
+    return {"message": "Pengumuman berhasil dihapus"}
