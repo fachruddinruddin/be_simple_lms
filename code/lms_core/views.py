@@ -445,3 +445,20 @@ def moderate_comment(request, comment_id):
             return JsonResponse({"error": "An unexpected error occurred"}, status=500)
 
     return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
+
+@csrf_exempt
+def set_max_students(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        course_id = data.get('course_id')
+        max_students = data.get('max_students')
+
+        try:
+            course = Course.objects.get(id=course_id)
+            course.max_students = max_students
+            course.save()
+            return JsonResponse({"message": "Jumlah maksimal siswa berhasil ditetapkan"}, status=200)
+        except Course.DoesNotExist:
+            return JsonResponse({"error": "Course tidak ditemukan"}, status=404)
+
+    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)

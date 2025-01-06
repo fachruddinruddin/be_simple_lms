@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from lms_core.views import index, testing, addData, editData, deleteData, register, list_comments, user_activity_dashboard, course_analytics, list_course_contents, register_user, enroll_course, batch_enroll, mark_course_complete, check_course_completion, certificate, create_announcement, show_announcements, edit_announcement, delete_announcement, add_category, show_categories, delete_category, api_batch_enroll, moderate_comment  # Import the new views
+from lms_core.views import index, testing, addData, editData, deleteData, register, list_comments, user_activity_dashboard, course_analytics, list_course_contents, register_user, enroll_course, batch_enroll, mark_course_complete, check_course_completion, certificate, create_announcement, show_announcements, edit_announcement, delete_announcement, add_category, show_categories, delete_category, api_batch_enroll, moderate_comment, set_max_students  # Import the new views
 from lms_core.api import apiv1  # Import the API
 from lms_core.admin import admin_site  # Import admin_site yang baru
 
@@ -47,5 +47,6 @@ urlpatterns = [
     path('delete_category/<int:category_id>/', delete_category, name='delete_category'),  # Add new URL pattern
     path('api/batch_enroll/', api_batch_enroll, name='api_batch_enroll'),  # Add new URL pattern
     path('moderate_comment/<int:comment_id>/', moderate_comment, name='moderate_comment'),  # Ensure this URL pattern is correct
+    path('set_max_students/', set_max_students, name='set_max_students'),  # Add new URL pattern
     path('', index),
 ]
