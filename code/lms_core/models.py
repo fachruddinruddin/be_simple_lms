@@ -100,9 +100,13 @@ class Announcement(models.Model):
         return self.title
 
 # Tambahkan metode di model User untuk menghitung statistik
-User.add_to_class('get_course_stats', lambda self: {
-    'courses_as_student': CourseMember.objects.filter(user_id=self, roles='std').count(),
-    'courses_created': Course.objects.filter(teacher=self).count(),
-    'comments_written': Comment.objects.filter(member_id__user_id=self).count(),
-    # 'contents_completed': ... (Tambahkan logika untuk menghitung konten yang diselesaikan jika fitur ini ada)
-})
+def get_course_stats(self):
+    return {
+        'courses_as_student': CourseMember.objects.filter(user_id=self, roles='std').count(),
+        'courses_as_assistant': CourseMember.objects.filter(user_id=self, roles='ast').count(),
+        'courses_created': Course.objects.filter(teacher=self).count(),
+        'comments_written': Comment.objects.filter(member_id__user_id=self).count(),
+        'contents_completed': CourseMember.objects.filter(user_id=self, is_completed=True).count()
+    }
+
+User.add_to_class('get_course_stats', get_course_stats)

@@ -29,7 +29,7 @@ def addData(request):
         name = "Belajar Django",
         description = "Belajar Django dengan Mudah",
         price = 1000000,
-        teacher = User.objects.get(username="reza")
+        teacher = User.objects.get(username="udin")
     )
     course.save()
     return JsonResponse({"message": "Data berhasil ditambahkan"})
@@ -112,37 +112,6 @@ def enroll_course(request):
             return JsonResponse({"error": "Course tidak ditemukan"}, status=404)
         except User.DoesNotExist:
             return JsonResponse({"error": "User tidak ditemukan"}, status=404)
-
-    return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
-
-@csrf_exempt
-def batch_enroll_students(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        course_id = data.get('course_id')
-        student_ids = data.get('student_ids')
-
-        try:
-            course = Course.objects.get(id=course_id)
-
-            for student_id in student_ids:
-                student = User.objects.get(id=student_id)
-
-                # Check if the student is already enrolled in the course
-                if not CourseMember.objects.filter(course_id=course, user_id=student).exists():
-                    # Check if the course has reached its maximum number of students
-                    enrolled_students_count = CourseMember.objects.filter(course_id=course).count()
-                    if enrolled_students_count < course.max_students:
-                        CourseMember.objects.create(course_id=course, user_id=student)
-                    else:
-                        return JsonResponse({"error": f"Kuota course {course.name} sudah penuh"}, status=400)
-
-            return JsonResponse({"message": "Students berhasil didaftarkan ke course"}, status=201)
-
-        except Course.DoesNotExist:
-            return JsonResponse({"error": "Course tidak ditemukan"}, status=404)
-        except User.DoesNotExist:
-            return JsonResponse({"error": "Salah satu atau lebih user tidak ditemukan"}, status=404)
 
     return JsonResponse({"error": "Metode permintaan tidak valid"}, status=405)
 

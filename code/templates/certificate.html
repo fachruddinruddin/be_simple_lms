@@ -28,11 +28,13 @@
     <div class="certificate">
         <h1>Certificate of Completion</h1>
         <p>This is to certify that</p>
-        <h2>{{ user.first_name }} {{ user.last_name }}</h2>
+        <h2>{{ user }}</h2>
         <p>has successfully completed the course</p>
         <h2>{{ course.name }}</h2>
         <p>on</p>
         <h2>{{ date|date:"F j, Y" }}</h2>
+        <p>Completed by</p>
+        <h2>{{ user }}</h2>
     </div>
 </body>
 </html>
