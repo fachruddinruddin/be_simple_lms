@@ -99,7 +99,6 @@ class Announcement(models.Model):
     def __str__(self):
         return self.title
 
-# Tambahkan metode di model User untuk menghitung statistik
 def get_course_stats(self):
     return {
         'courses_as_student': CourseMember.objects.filter(user_id=self, roles='std').count(),

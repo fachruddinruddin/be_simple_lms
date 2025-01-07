@@ -8,10 +8,10 @@ import json
 from django.utils import timezone
 from django.contrib.auth import authenticate, login
 from django.db.models import Count
-from django import forms  # Tambahkan impor ini
+from django import forms 
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.contrib import messages  # Add this import
+from django.contrib import messages  
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,8 +27,8 @@ def testing(request):
 def addData(request): 
     course = Course(
         name = "Belajar Django",
-        description = "Belajar Django dengan Mudah",
-        price = 1000000,
+        description = "Belajar Django",
+        price = 2000000,
         teacher = User.objects.get(username="udin")
     )
     course.save()
@@ -95,16 +95,13 @@ def enroll_course(request):
             course = Course.objects.get(id=course_id)
             user = User.objects.get(id=user_id)
 
-            # Check if the user is already enrolled in the course
             if CourseMember.objects.filter(course_id=course, user_id=user).exists():
                 return JsonResponse({"error": "User sudah terdaftar di course ini"}, status=400)
 
-            # Check if the course has reached its maximum number of students
             enrolled_students_count = CourseMember.objects.filter(course_id=course).count()
             if enrolled_students_count >= course.max_students:
                 return JsonResponse({"error": "Kuota course sudah penuh"}, status=400)
 
-            # Enroll the user in the course
             CourseMember.objects.create(course_id=course, user_id=user)
             return JsonResponse({"message": "User berhasil didaftarkan ke course"}, status=201)
 
@@ -127,7 +124,7 @@ def user_activity_dashboard(request, user_id):
             'courses_as_student': CourseMember.objects.filter(user_id=user, roles='std').count(),
             'courses_created': Course.objects.filter(teacher=user).count(),
             'comments_written': Comment.objects.filter(member_id__user_id=user).count(),
-            'contents_completed': CourseMember.objects.filter(user_id=user, is_completed=True).count()  # Assuming content completion is tracked by CourseMember
+            'contents_completed': CourseMember.objects.filter(user_id=user, is_completed=True).count()  
         }
         return JsonResponse(stats, status=200)
     except User.DoesNotExist:
@@ -140,7 +137,6 @@ def course_analytics(request, course_id):
             'members_count': CourseMember.objects.filter(course_id=course).count(),
             'contents_count': CourseContent.objects.filter(course_id=course).count(),
             'comments_count': Comment.objects.filter(content_id__course_id=course).count(),
-            # 'feedback_count': ... (Tambahkan logika untuk menghitung feedback jika fitur ini ada)
         }
         return JsonResponse(stats, status=200)
     except Course.DoesNotExist:
